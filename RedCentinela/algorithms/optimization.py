@@ -15,8 +15,8 @@ def configuration_score(
     - Use problem.score_components(configuration); ya retorna cobertura,
       redundancia y exposición en ese orden.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 1: implemente configuration_score")
+    coverage, redundancy, exposure = problem.score_components(configuration)
+    return coverage - redundancy - exposure
 
 
 def hill_climbing(
@@ -48,8 +48,7 @@ def cooling_schedule(initial_temperature: float, cooling_rate: float, iteration:
 
     Esta función se invoca desde simulated_annealing en cada iteración.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 2: implemente cooling_schedule")
+    return initial_temperature * (cooling_rate ** iteration)
 
 
 def simulated_annealing(
@@ -78,10 +77,50 @@ def simulated_annealing(
     """
     rng = rng or random.Random()
     minimum_temperature = 1e-9
+    current = tuple(initial_configuration)
+    current_score = configuration_score(problem, current)
+    evaluations = 1
+    iterations = 0
+    best_configuration = current
+    best_score = current_score
+    history: list[Configuration] = [current]
+    score_history: list[float] = [current_score]
+    for step in range(max_iterations):
+        temperature = cooling_schedule(initial_temperature, cooling_rate, step)
+        if temperature <= minimum_temperature:
+            break
+        neighbors = problem.neighbors(current)
+        if not neighbors:
+            break
+        candidate = rng.choice(neighbors)
+        candidate_score = configuration_score(problem, candidate)
+        evaluations += 1
+        iterations += 1
+        delta = candidate_score - current_score
+        if delta > 0:
+            accepted = True
+        else:
+            accepted = rng.random() < math.exp(delta / temperature)
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 2: implemente simulated_annealing")
+        if accepted:
+            current = candidate
+            current_score = candidate_score
+            if current_score > best_score:
+                best_configuration = current
+                best_score = current_score
 
+        history.append(current)
+        score_history.append(current_score)
+
+    return OptimizationResult(
+        best_configuration=best_configuration,
+        best_score=best_score,
+        evaluations=evaluations,
+        iterations=iterations,
+        history=history,
+        score_history=score_history,
+    )
+    
 
 def one_point_crossover(
     parent1: Configuration, parent2: Configuration, rng: random.Random
@@ -101,8 +140,10 @@ def one_point_crossover(
     if len(parent1) < 2:
         return parent1, parent2
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente one_point_crossover")
+    cut = rng.randint(1, len(parent1) - 1)
+    child1 = tuple(parent1[:cut]) + tuple(parent2[cut:])
+    child2 = tuple(parent2[:cut]) + tuple(parent1[cut:])
+    return child1, child2
 
 
 def swap_mutation(
@@ -121,9 +162,20 @@ def swap_mutation(
     - Si alguno de los dos grupos está vacío, no hay un intercambio posible.
     - Retorne una tupla nueva; no modifique el individuo recibido.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente swap_mutation")
+    if rng.random() >= mutation_probability:
+        return tuple(individual)
 
+    active = [index for index, bit in enumerate(individual) if bit]
+    inactive = [index for index, bit in enumerate(individual) if not bit]
+    if not active or not inactive:
+        return tuple(individual)
+
+    remove = rng.choice(active)
+    add = rng.choice(inactive)
+    mutated = list(individual)
+    mutated[remove] = 0
+    mutated[add] = 1
+    return tuple(mutated)
 
 def genetic_algorithm(
     problem: SmartGridOptimizationProblem,
@@ -158,5 +210,59 @@ def genetic_algorithm(
     if not 0 <= elite_size <= population_size:
         raise ValueError("elite_size debe estar entre 0 y population_size")
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente genetic_algorithm")
+    population = problem.initial_population(population_size, rng)
+    scores = [configuration_score(problem, individual) for individual in population]
+    evaluations = len(population)
+
+    best_index = max(range(len(population)), key=lambda index: scores[index])
+    best_configuration = population[best_index]
+    best_score = scores[best_index]
+
+    history: list[Configuration] = [best_configuration]
+    score_history: list[float] = [best_score]
+
+    offspring_needed = population_size - elite_size
+
+    for _ in range(generations):
+        # Elitismo: los mejores individuos pasan intactos a la nueva población.
+        ranking = sorted(range(len(population)), key=lambda index: scores[index], reverse=True)
+        elite_indices = ranking[:elite_size]
+        new_population = [population[index] for index in elite_indices]
+        new_scores = [scores[index] for index in elite_indices]
+
+        offspring: list[Configuration] = []
+        while len(offspring) < offspring_needed:
+            parent1 = problem.tournament_select(population, scores, rng)
+            parent2 = problem.tournament_select(population, scores, rng)
+            child1, child2 = one_point_crossover(parent1, parent2, rng)
+            for child in (child1, child2):
+                if len(offspring) >= offspring_needed:
+                    break
+                repaired = problem.repair_configuration(child, rng)
+                mutated = swap_mutation(repaired, mutation_probability, rng)
+                offspring.append(mutated)
+
+        for child in offspring:
+            new_population.append(child)
+            new_scores.append(configuration_score(problem, child))
+            evaluations += 1
+
+        population = new_population
+        scores = new_scores
+
+        generation_best = max(range(len(population)), key=lambda index: scores[index])
+        if scores[generation_best] > best_score:
+            best_configuration = population[generation_best]
+            best_score = scores[generation_best]
+
+        history.append(best_configuration)
+        score_history.append(best_score)
+
+    return OptimizationResult(
+        best_configuration=best_configuration,
+        best_score=best_score,
+        evaluations=evaluations,
+        iterations=generations,
+        history=history,
+        score_history=score_history,
+    )
