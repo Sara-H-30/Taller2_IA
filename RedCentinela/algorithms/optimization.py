@@ -38,8 +38,52 @@ def hill_climbing(
     - Inicialice los historiales con la configuración inicial y agregue solo las
       mejoras aceptadas antes de retornar el OptimizationResult.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 1: implemente hill_climbing")
+    current_configuration = tuple(initial_configuration)
+    current_score = configuration_score(problem, current_configuration)
+
+    evaluations = 1
+    iterations = 0
+
+    history: list[Configuration] = [current_configuration]
+    score_history: list[float] = [current_score]
+
+    while iterations < max_iterations:
+        neighboring_configurations = problem.neighbors(current_configuration)
+
+        if not neighboring_configurations:
+            break
+
+        best_neighbor = neighboring_configurations[0]
+        best_neighbor_score = configuration_score(problem, best_neighbor)
+        evaluations += 1
+
+        for neighbor_configuration in neighboring_configurations[1:]:
+            neighbor_score = configuration_score(problem, neighbor_configuration)
+            evaluations += 1
+
+            if neighbor_score > best_neighbor_score:
+                best_neighbor = neighbor_configuration
+                best_neighbor_score = neighbor_score
+
+        if best_neighbor_score <= current_score:
+            break
+
+        current_configuration = best_neighbor
+        current_score = best_neighbor_score
+
+        iterations += 1
+
+        history.append(current_configuration)
+        score_history.append(current_score)
+
+    return OptimizationResult(
+        best_configuration=current_configuration,
+        best_score=current_score,
+        evaluations=evaluations,
+        iterations=iterations,
+        history=history,
+        score_history=score_history,
+    )
 
 
 def cooling_schedule(initial_temperature: float, cooling_rate: float, iteration: int) -> float:
