@@ -62,10 +62,10 @@ class MinimaxAgent(MultiAgentSearchAgent):
 
         for accion in acciones:
             sucesor = state.generate_successor(0, accion)
-            
+            # Usar una acción consume un ply de profundidad
             valor = self.minimax_value(sucesor, siguiente_agente, self.depth - 1)
 
-            
+            # Se usa ">" y no ">=": si hay empate, se queda la primera acción
             if valor > mejor_valor:
                 mejor_valor = valor
                 mejor_accion = accion
@@ -79,7 +79,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
         agente: índice del agente que juega en este estado (0 = MAX, 1 = MIN).
         profundidad_restante: cuántos plies quedan por explorar.
         """
-        
+        # Este estado se está procesando, así que se cuenta una vez
         self.nodes_evaluated = self.nodes_evaluated + 1
 
         # Caso base 1: estado terminal (el defensor ganó o fue interceptado)
@@ -135,5 +135,97 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         - En MAX actualice alpha y corte si valor >= beta; en MIN actualice beta
           y corte si valor <= alpha.
         """
-        # TODO: Add your code here
-        raise NotImplementedError("Punto 5: implemente AlphaBetaAgent.get_action")
+        # Mismo conteo que en Minimax: se reinicia y se cuenta la raíz
+        self.nodes_evaluated = 0
+        self.nodes_evaluated = self.nodes_evaluated + 1
+
+        if state.is_win() or state.is_lose():
+            return None
+
+        acciones = state.get_legal_actions(0)
+        if len(acciones) == 0:
+            return None
+
+        siguiente_agente = 1 % state.get_num_agents()
+
+        # alpha: lo mejor que MAX tiene asegurado; beta: lo mejor para MIN
+        alpha = float("-inf")
+        beta = float("inf")
+
+        mejor_accion = None
+        mejor_valor = float("-inf")
+
+        for accion in acciones:
+            sucesor = state.generate_successor(0, accion)
+            valor = self.alphabeta_value(sucesor, siguiente_agente, self.depth - 1, alpha, beta)
+
+            # ">" estricto: en empate se conserva la primera acción
+            if valor > mejor_valor:
+                mejor_valor = valor
+                mejor_accion = accion
+
+            # La raíz es un nodo MAX, así que actualiza alpha
+            if mejor_valor > alpha:
+                alpha = mejor_valor
+
+        return mejor_accion
+
+    def alphabeta_value(self, state, agente, profundidad_restante, alpha, beta):
+        """
+        Retorna el valor Minimax de un estado usando poda alfa-beta.
+
+        alpha: mejor valor que MAX ya tiene asegurado en el camino actual.
+        beta: mejor valor que MIN ya tiene asegurado en el camino actual.
+        """
+        # Este estado se procesa, así que se cuenta una vez
+        self.nodes_evaluated = self.nodes_evaluated + 1
+
+        # Mismos casos base que Minimax
+        if state.is_win() or state.is_lose():
+            return evaluation_function(state)
+
+        if profundidad_restante == 0:
+            return evaluation_function(state)
+
+        acciones = state.get_legal_actions(agente)
+        if len(acciones) == 0:
+            return evaluation_function(state)
+
+        siguiente_agente = (agente + 1) % state.get_num_agents()
+
+        if agente == 0:
+            # Nodo MAX (defensor)
+            valor = float("-inf")
+            for accion in acciones:
+                sucesor = state.generate_successor(agente, accion)
+                resultado = self.alphabeta_value(
+                    sucesor, siguiente_agente, profundidad_restante - 1, alpha, beta
+                )
+                if resultado > valor:
+                    valor = resultado
+
+                # MIN ya tiene algo igual o mejor (beta): nunca dejará llegar aquí
+                if valor >= beta:
+                    return valor
+
+                if valor > alpha:
+                    alpha = valor
+            return valor
+        else:
+            # Nodo MIN (intruso)
+            valor = float("inf")
+            for accion in acciones:
+                sucesor = state.generate_successor(agente, accion)
+                resultado = self.alphabeta_value(
+                    sucesor, siguiente_agente, profundidad_restante - 1, alpha, beta
+                )
+                if resultado < valor:
+                    valor = resultado
+
+                # MAX ya tiene algo igual o mejor (alpha): nunca escogerá esta rama
+                if valor <= alpha:
+                    return valor
+
+                if valor < beta:
+                    beta = valor
+            return valor
