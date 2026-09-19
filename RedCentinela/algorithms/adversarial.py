@@ -40,8 +40,82 @@ class MinimaxAgent(MultiAgentSearchAgent):
         - Reinicie las métricas y cuente una vez cada estado procesado, incluida
           la raíz. Retorne la acción de MAX y conserve la primera en los empates.
         """
-        # TODO: Add your code here
-        raise NotImplementedError("Punto 4: implemente MinimaxAgent.get_action")
+        # Cada llamada a get_action empieza con el contador en cero
+        self.nodes_evaluated = 0
+
+        # La raíz también es un estado procesado, así que se cuenta
+        self.nodes_evaluated = self.nodes_evaluated + 1
+
+        # Si el juego ya terminó en la raíz, no hay acción que escoger
+        if state.is_win() or state.is_lose():
+            return None
+
+        acciones = state.get_legal_actions(0)
+        if len(acciones) == 0:
+            return None
+
+        # En la raíz juega el defensor (agente 0, MAX)
+        siguiente_agente = 1 % state.get_num_agents()
+
+        mejor_accion = None
+        mejor_valor = float("-inf")
+
+        for accion in acciones:
+            sucesor = state.generate_successor(0, accion)
+            
+            valor = self.minimax_value(sucesor, siguiente_agente, self.depth - 1)
+
+            
+            if valor > mejor_valor:
+                mejor_valor = valor
+                mejor_accion = accion
+
+        return mejor_accion
+
+    def minimax_value(self, state, agente, profundidad_restante):
+        """
+        Retorna el valor Minimax de un estado.
+
+        agente: índice del agente que juega en este estado (0 = MAX, 1 = MIN).
+        profundidad_restante: cuántos plies quedan por explorar.
+        """
+        
+        self.nodes_evaluated = self.nodes_evaluated + 1
+
+        # Caso base 1: estado terminal (el defensor ganó o fue interceptado)
+        if state.is_win() or state.is_lose():
+            return evaluation_function(state)
+
+        # Caso base 2: se acabó la profundidad permitida (corte)
+        if profundidad_restante == 0:
+            return evaluation_function(state)
+
+        acciones = state.get_legal_actions(agente)
+
+        # Caso base 3: el agente no tiene movimientos posibles
+        if len(acciones) == 0:
+            return evaluation_function(state)
+
+        siguiente_agente = (agente + 1) % state.get_num_agents()
+
+        if agente == 0:
+            # Nodo MAX (defensor): se queda con el valor más alto
+            mejor = float("-inf")
+            for accion in acciones:
+                sucesor = state.generate_successor(agente, accion)
+                valor = self.minimax_value(sucesor, siguiente_agente, profundidad_restante - 1)
+                if valor > mejor:
+                    mejor = valor
+            return mejor
+        else:
+            # Nodo MIN (intruso): se queda con el valor más bajo para MAX
+            peor = float("inf")
+            for accion in acciones:
+                sucesor = state.generate_successor(agente, accion)
+                valor = self.minimax_value(sucesor, siguiente_agente, profundidad_restante - 1)
+                if valor < peor:
+                    peor = valor
+            return peor
 
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
